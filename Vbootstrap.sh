@@ -24,3 +24,5 @@ pip install supervisor
 # with the brokers on ports 9093 and 9094
 tar -zxvf /vagrant/Vbootstrap.tgz
 
+supervisord -c /home/vagrant/kafka_2.8.0-0.8.0/config/supervisord.conf
+/home/vagrant/kafka_2.8.0-0.8.0/bin/kafka-create-topic.sh --zookeeper 192.168.44.11:2181 --partition 4 --replica 2  --topic topic01

@@ -22,9 +22,10 @@ setup(
 #     ],
     packages = [
         'kafka',
-        'kafka.client',
-        'kafka.consumer',
-        'kafka.producer',
+        'kafka.test',
+#         'kafka.client',
+#         'kafka.consumer',
+#         'kafka.producer',
     ],
     package_data = {
         '': ['README.md'],
