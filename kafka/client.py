@@ -9,6 +9,7 @@ import kafka.protocol
 logger = logging.getLogger(__name__)
 
 DEFAULT_SOCKET_TIMEOUT_SECONDS = 5
+FETCH_BUFFER_SIZE_BYTES = 4096
 
 
 class KafkaConnection(object):
@@ -23,7 +24,7 @@ class KafkaConnection(object):
         return "('%s', %s)" % (self.host, self.port)
 
     def __repr__(self):
-        return self.__str__()
+        return "KafkaConnection('%s', %i, %f)" % (self.host, self.port, self.timeout)
 
     def __lt__(self, other):
         if type(other) is tuple:
@@ -56,18 +57,29 @@ class KafkaConnection(object):
         self.sock.sendall(payload)
         return
 
+    def _read_bytes(self, size_b):
+        resp = ''
+        while size_b:
+            try:
+                data = self.sock.recv(size_b)
+            except socket.error as exc:
+                logger.warning('unable to receive data from kafka: %s', exc)
+            size_b -= len(data)
+            resp += data
+        return resp
+
+
     def recv(self, request_id):
         if not self.sock: self.connect()
         # read header
-        resp = self.sock.recv(4, socket.MSG_WAITALL)
+#         resp = self.sock.recv(4, socket.MSG_WAITALL)
+        resp = self._read_bytes(4)
         (size,) = struct.unpack('>i', resp)
         # read the rest of the message
-        resp = self.sock.recv(size, socket.MSG_WAITALL)
+#         resp = self.sock.recv(size, socket.MSG_WAITALL)
+        resp = self._read_bytes(size)
         data = str(resp)
         return data
-
-
-
 
 
 class KafkaClient(object):
@@ -87,21 +99,34 @@ class KafkaClient(object):
         self.topics_to_brokers = {}  # topic_id -> broker_id
         self.topic_partitions = {}   # topic_id -> [0, 1, 2, ...]
 
+        self.get_metadata()
+
         return
 
 
-    def send_request(self, request_id, request):
+    def close(self):
+        for conn in self.conns:
+            conn.close()
+
+
+    def send_request(self, request_id, request, broker=None):
 
         for conn in self.conns:
+
+            if broker:
+                if (conn.host, conn.port) != (broker.host, broker.port):
+                    continue
+
             try:
                 conn.send(request_id, request)
                 response = conn.recv(request_id)
                 return response
+
             except Exception as exc:
-                logger.debug(exc)
+                logger.error("conn: %s, broker: %s, %s", conn, broker, exc, exc_info=True)
                 continue
 
-        return False
+        raise Exception("no responses from brokers")
 
 
     def get_metadata(self):
@@ -112,9 +137,9 @@ class KafkaClient(object):
 
         request_id = KafkaClient.ID_GEN.next()
         request = kafka.protocol.encode_metadata_request(self.client_id, request_id, topics=None)
-        logger.debug("metadata request: %s", base64.b64encode(request))
+#         logger.debug(base64.b64encode(request))
         response = self.send_request(request_id, request)
-        logger.debug("metadata response: %s", base64.b64encode(response))
+#         logger.debug(base64.b64encode(response))
         self.brokers, topics = kafka.protocol.decode_metadata_response(response)
         for topic, partitions in topics.items():
             if not partitions: continue
@@ -125,3 +150,22 @@ class KafkaClient(object):
                 self.topic_partitions[topic].append(partition)
 
         return
+
+
+    def fetch(self, topic, partition, offset):
+
+        request_id = KafkaClient.ID_GEN.next()
+        request = kafka.protocol.FetchRequest(topic, partition, offset, FETCH_BUFFER_SIZE_BYTES)
+        encoded = kafka.protocol.encode_fetch_request(self.client_id, request_id, request)
+#         logger.debug(base64.b64encode(encoded))
+        leader = self.topics_to_brokers[kafka.protocol.TopicAndPartition(topic, partition)]
+        response = self.send_request(request_id, encoded, broker=leader)
+#         logger.debug(base64.b64encode(response))
+
+        messages = []
+        for r in kafka.protocol.decode_fetch_response(response):
+            for m in r.messages:
+                messages.append(m)
+
+        return messages
+

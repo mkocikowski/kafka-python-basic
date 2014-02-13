@@ -15,19 +15,35 @@ class ClientTest(unittest.TestCase):
         client = kafka.client.KafkaClient("192.168.44.11:9093,192.168.44.11:9094")
         self.assertEqual(sorted(client.conns), [('192.168.44.11', 9093), ('192.168.44.11', 9094)])
 
+
     def test_get_metadata(self):
-        c1 = kafka.client.KafkaClient("192.168.44.11:9093")
-        c1.get_metadata()
-        print(c1.__dict__)
+        client = kafka.client.KafkaClient("192.168.44.11:9093,192.168.44.11:9094")
+        client.conns[0].send = lambda x, y: True
+        # use data previously captured from the wire
+        client.conns[0].recv = lambda a: base64.b64decode("AAAAAAAAAAIAAAACAA0xOTIuMTY4LjQ0LjExAAAjhgAAAAEADTE5Mi4xNjguNDQuMTEAACOFAAAAAQAAAAd0b3BpYzAxAAAABAAAAAAAAAAAAAIAAAACAAAAAgAAAAEAAAABAAAAAgAAAAAAAQAAAAIAAAACAAAAAQAAAAIAAAABAAAAAgAAAAAAAgAAAAIAAAACAAAAAgAAAAEAAAABAAAAAgAAAAAAAwAAAAIAAAACAAAAAQAAAAIAAAABAAAAAg==")
+        client.get_metadata()
+        self.assertEqual(client.topics_to_brokers[kafka.protocol.TopicAndPartition(topic='topic01', partition=3)], kafka.protocol.BrokerMetadata(nodeId=2, host='192.168.44.11', port=9094))
 
-        c = kafka.client.KafkaClient("192.168.44.11:9093")
-        c.conns[0].send = lambda a, b: True
-        c.conns[0].recv = lambda a: base64.b64decode("AAAAAAAAAAIAAAACAA0xOTIuMTY4LjQ0LjExAAAjhgAAAAEADTE5Mi4xNjguNDQuMTEAACOFAAAAAQAAAAd0b3BpYzAxAAAABAAAAAAAAAAAAAIAAAACAAAAAgAAAAEAAAABAAAAAgAAAAAAAQAAAAIAAAACAAAAAQAAAAIAAAABAAAAAgAAAAAAAgAAAAIAAAACAAAAAgAAAAEAAAABAAAAAgAAAAAAAwAAAAIAAAACAAAAAQAAAAIAAAABAAAAAg==")
-        c.get_metadata()
-        print(c.__dict__)
 
-        self.assertEqual(c.topics_to_brokers, c1.topics_to_brokers)
+    def test_fetch(self):
+        client = kafka.client.KafkaClient("192.168.44.11:9093,192.168.44.11:9094")
+        messages = client.fetch('topic01', 0, 0)
 
+
+
+# class IntergationClientTest(unittest.TestCase):
+#
+#     def test_get_metadata(self):
+#         client = kafka.client.KafkaClient("192.168.44.11:9093,192.168.44.11:9094")
+#         client.get_metadata()
+#
+#     def test_fetch(self):
+#         client = kafka.client.KafkaClient("192.168.44.11:9093,192.168.44.11:9094")
+#         client.fetch('topic01', 0, 0)
+#         client.fetch('topic01', 1, 0)
+#         client.fetch('topic01', 2, 0)
+#         client.fetch('topic01', 3, 0)
+#
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)

@@ -2,6 +2,7 @@ import collections
 import struct
 import logging
 import base64
+import zlib
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,9 @@ class BufferUnderflowError(KafkaError): pass
 class ChecksumError(KafkaError): pass
 class ConsumerFetchSizeTooSmall(KafkaError): pass
 class ConsumerNoMoreData(KafkaError): pass
+
+class UnknownTopicError(KafkaError): pass
+class CompressionNotSupportedError(KafkaError): pass
 
 
 def write_int_string(s):
@@ -141,7 +145,6 @@ def decode_metadata_response(data):
 
     ((correlation_id, numbrokers), cur) = relative_unpack('>ii', data, 0)
 
-    # Broker info
     brokers = {}
     for i in range(numbrokers):
         ((nodeId, ), cur) = relative_unpack('>i', data, cur)
@@ -149,21 +152,16 @@ def decode_metadata_response(data):
         ((port,), cur) = relative_unpack('>i', data, cur)
         brokers[nodeId] = BrokerMetadata(nodeId, host, port)
 
-    # Topic info
     ((num_topics,), cur) = relative_unpack('>i', data, cur)
     topic_metadata = {}
 
     for i in range(num_topics):
-        # NOTE: topic_error is discarded. Should probably be returned with
-        # the topic metadata.
         ((topic_error,), cur) = relative_unpack('>h', data, cur)
         (topic_name, cur) = read_short_string(data, cur)
         ((num_partitions,), cur) = relative_unpack('>i', data, cur)
         partition_metadata = {}
 
         for j in range(num_partitions):
-            # NOTE: partition_error_code is discarded. Should probably be
-            # returned with the partition metadata.
             ((partition_error_code, partition, leader, numReplicas), cur) = relative_unpack('>hiii', data, cur)
             (replicas, cur) = relative_unpack('>%di' % numReplicas, data, cur)
             ((num_isr,), cur) = relative_unpack('>i', data, cur)
@@ -175,7 +173,76 @@ def decode_metadata_response(data):
     return brokers, topic_metadata
 
 
+def encode_fetch_request(client_id, correlation_id, request, max_wait_time=100, min_bytes=4096):
+
+    message = encode_message_header(client_id, correlation_id, FETCH_KEY)
+    message += struct.pack('>iiii', -1, max_wait_time, min_bytes, 1)
+    message += write_short_string(request.topic)
+    message += struct.pack('>i', 1)
+    message += struct.pack('>iqi', request.partition, request.offset, request.max_bytes)
+
+    data = write_int_string(message)
+    return(data)
 
 
 
+def decode_fetch_response(data):
+
+    ((correlation_id, num_topics), cur) = relative_unpack('>ii', data, 0)
+
+    for i in range(num_topics):
+        (topic, cur) = read_short_string(data, cur)
+        ((num_partitions,), cur) = relative_unpack('>i', data, cur)
+
+        for i in range(num_partitions):
+            ((partition, error, highwater_mark_offset), cur) = relative_unpack('>ihq', data, cur)
+            (message_set, cur) = read_int_string(data, cur)
+            yield FetchResponse(topic, partition, error, highwater_mark_offset, decode_message_set_iter(message_set))
+
+
+def decode_message_set_iter(data):
+
+    cur = 0
+    read_message = False
+
+    while cur < len(data):
+
+        try:
+            ((offset, ), cur) = relative_unpack('>q', data, cur)
+            (msg, cur) = read_int_string(data, cur)
+            for (offset, message) in decode_message(msg, offset):
+                read_message = True
+                yield OffsetAndMessage(offset, message)
+
+        except BufferUnderflowError:
+            if read_message is False: raise ConsumerFetchSizeTooSmall()
+            else: raise StopIteration()
+
+
+def decode_message(data, offset):
+
+    ((crc, magic, att), cur) = relative_unpack('>iBB', data, 0)
+    if crc != zlib.crc32(data[4:]):
+        raise ChecksumError("Message checksum failed")
+
+    (key, cur) = read_int_string(data, cur)
+    (value, cur) = read_int_string(data, cur)
+    codec = att & ATTRIBUTE_CODEC_MASK
+
+    if codec == CODEC_NONE:
+        yield (offset, Message(magic, att, key, value))
+
+    elif codec == CODEC_GZIP:
+#         gz = gzip_decode(value)
+#         for (offset, msg) in decode_message_set_iter(gz):
+#             yield (offset, msg)
+        raise CompressionNotSupportedError('gzip not supported yet')
+        pass
+
+    elif codec == CODEC_SNAPPY:
+#         snp = snappy_decode(value)
+#         for (offset, msg) in decode_message_set_iter(snp):
+#             yield (offset, msg)
+        raise CompressionNotSupportedError('snappy not supported yet')
+        pass
 
