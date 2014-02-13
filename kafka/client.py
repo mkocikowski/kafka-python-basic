@@ -9,7 +9,7 @@ import kafka.protocol
 logger = logging.getLogger(__name__)
 
 DEFAULT_SOCKET_TIMEOUT_SECONDS = 5
-FETCH_BUFFER_SIZE_BYTES = 4096
+FETCH_BUFFER_SIZE_BYTES = 2**24 # 16MB max message size, anything bigger will effectively choke the partition
 
 
 class KafkaConnection(object):

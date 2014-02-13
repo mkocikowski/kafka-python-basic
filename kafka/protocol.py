@@ -214,8 +214,14 @@ def decode_message_set_iter(data):
                 read_message = True
                 yield OffsetAndMessage(offset, message)
 
-        except BufferUnderflowError:
-            if read_message is False: raise ConsumerFetchSizeTooSmall()
+        except BufferUnderflowError as exc:
+            # this happens when there is a partial message - according
+            # to the spec, the last message may be partial; here the
+            # default behavior is to discard the unfinished message,
+            # and get it on the next run, but if there is a single
+            # message too large to fit, there is a problem - it will
+            # never make it through
+            if read_message is False: raise ConsumerFetchSizeTooSmall("try adjusting client.FETCH_BUFFER_SIZE_BYTES")
             else: raise StopIteration()
 
 
@@ -223,7 +229,7 @@ def decode_message(data, offset):
 
     ((crc, magic, att), cur) = relative_unpack('>iBB', data, 0)
     if crc != zlib.crc32(data[4:]):
-        raise ChecksumError("Message checksum failed")
+        raise ChecksumError("message checksum failed")
 
     (key, cur) = read_int_string(data, cur)
     (value, cur) = read_int_string(data, cur)

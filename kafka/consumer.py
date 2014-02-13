@@ -7,8 +7,6 @@ import kafka.protocol
 
 logger = logging.getLogger(__name__)
 
-FETCH_BUFFER_SIZE_BYTES = 4096
-MAX_FETCH_BUFFER_SIZE_BYTES = FETCH_BUFFER_SIZE_BYTES * 8
 
 class Consumer(object):
 
