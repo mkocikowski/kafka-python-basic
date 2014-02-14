@@ -13,7 +13,7 @@ setup(
     version = '0.0.1',
     author = 'Mik Kocikowski',
     author_email = 'mkocikowski@gmail.com',
-    url = 'https://github.com/mkocikowski/estools',
+    url = 'https://github.com/mkocikowski/kafka-python-basic',
     description = 'Kafka client, basic.',
     long_description = ld,
 #     install_requires = [
@@ -30,12 +30,12 @@ setup(
     package_data = {
         '': ['README.md'],
     },
-#     entry_points = {
-#         'console_scripts': [
-#             'esload = estools.load.client:main',
+    entry_points = {
+        'console_scripts': [
+            'kafka-consumer = kafka.consumer:main',
 #             'esdump = estools.dump.client:main',
-#         ]
-#     },
+        ]
+    },
     classifiers = [
         "Development Status :: 3 - Alpha",
         "Environment :: Console",
@@ -47,5 +47,5 @@ setup(
         "Topic :: Utilities",
     ],
     license = 'MIT',
-#     test_suite = "estools.test.units.suite",
+    test_suite = "kafka.test.units.suite",
 )

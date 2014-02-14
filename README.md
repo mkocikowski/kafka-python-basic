@@ -4,16 +4,23 @@ Provide simple, single-threaded consumer and producer, compatible with
 Kafka 0.8. These are to be used either as stand alone programs, or as
 libraries. The producer will also expose a REST interface. 
 
-Installation
-------------
+Installation - client only
+--------------------------
 
-    
+    # if you want the client only, no VM with zookeeper/kafka
     pip install -U https://github.com/mkocikowski/kafka-python-basic/archive/master.zip
+
+    # if you want the VM, zookeeper/kafka, for devs:
+    git clone https://github.com/mkocikowski/kafka-python-basic.git
+    cd kafka-python-basic
+    pip install -Ue ./
+    vagrant up # make sure you have 192.168.44.11 available
+    python kafka/test/units.py 
 
 Consumer CLI
 ------------
 
-    kafka-consumer --hosts broker1:9093,broker2:9094 --topic mytopic
+    kafka-consumer --hosts 192.168.44.11:9093,192.168.44.11:9094 --topic topic01
 
 If you have multiple brokers, you must list them all in the hosts
 string (at least the brokers for the topic). There is no

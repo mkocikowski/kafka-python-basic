@@ -154,7 +154,7 @@ def args_parser():
     epilog = """
 There is little automagic here. You need to specify all your brokers
 in the hosts parameter (there is no magic boostraping of the config).
-If you set the --failfast flag, then the program will exit on first
+If you set the 'failfast' flag, then the program will exit on first
 connection failure. Otherwise, when there is a problem with connection
 to individual broker, the connection will be retried. The basic idea
 is to run this in failfast mode under supervisord or something like
