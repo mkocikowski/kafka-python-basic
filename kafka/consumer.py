@@ -92,10 +92,21 @@ class KafkaConsumer(object):
 
 def args_parser():
 
-    parser = argparse.ArgumentParser(description="Kafka consumer cli (%s)" % (kafka.__version__, ), epilog="")
+    epilog = """
+There is little automagic here. You need to specify all your brokers
+in the hosts parameter (there is no magic boostraping of the config).
+If you set the --failfast flag, then the program will exit on first
+connection failure. Otherwise, when there is a problem with connection
+to individual broker, the connection will be retried. The basic idea
+is to run this in failfast mode under supervisord or something like
+that.
+"""
+
+    parser = argparse.ArgumentParser(description="Kafka consumer cli (%s)" % (kafka.__version__, ), epilog=epilog)
     parser.add_argument('--hosts', type=str, action='store', default='localhost:9092', help="broker1:port1,broker2:port2; (%(default)s)")
     parser.add_argument('--topic', type=str, action='store', default=None, help="topic name; (%(default)s)")
-    parser.add_argument('--failfast', action='store_true')
+    parser.add_argument('--failfast', action='store_true', help="if set, exit on any error")
+    parser.add_argument('--verbose', '-v', action='count', default=0, help="try -v, -vv, -vvv")
 
     return parser
 
@@ -103,6 +114,7 @@ def args_parser():
 def main():
 
     args = args_parser().parse_args()
+    kafka.log.set_up_logging(level=logging.ERROR-(args.verbose*10))
 
     client = kafka.client.KafkaClient(args.hosts)
     consumer = KafkaConsumer(client, 'g1', args.topic, failfast=args.failfast)
@@ -114,8 +126,6 @@ def main():
 
 
 if __name__ == "__main__":
-
-    kafka.log.set_up_logging(level=logging.INFO)
     main()
 
 
