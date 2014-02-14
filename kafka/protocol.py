@@ -51,7 +51,6 @@ class ConsumerNoMoreData(KafkaError): pass
 class UnknownTopicError(KafkaError): pass
 class CompressionNotSupportedError(KafkaError): pass
 
-
 def write_int_string(s):
     if s is None:
         return struct.pack('>i', -1)

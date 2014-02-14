@@ -4,87 +4,16 @@ import itertools
 import socket
 import base64
 
+import kafka.connection
 import kafka.protocol
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_SOCKET_TIMEOUT_SECONDS = 5
 FETCH_BUFFER_SIZE_BYTES = 2**24 # 16MB max message size, anything bigger will effectively choke the partition
-
-
-class KafkaConnection(object):
-
-    def __init__(self, host, port, timeout=DEFAULT_SOCKET_TIMEOUT_SECONDS):
-        self.host = host
-        self.port = int(port)
-        self.timeout = float(DEFAULT_SOCKET_TIMEOUT_SECONDS)
-        self.sock = None
-
-    def __str__(self):
-        return "('%s', %s)" % (self.host, self.port)
-
-    def __repr__(self):
-        return "KafkaConnection('%s', %i, %f)" % (self.host, self.port, self.timeout)
-
-    def __lt__(self, other):
-        if type(other) is tuple:
-            if self.host < other[0]: return True
-            if self.port < other[1]: return True
-        if self.host < other.host: return True
-        if self.port < other.port: return True
-        return False
-
-    def __eq__(self, other):
-        if (self.host, self.port) == other: return True
-        if other.host != self.host: return False
-        if other.port != self.port: return False
-        return True
-
-    def connect(self):
-        self.close()
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.settimeout(self.timeout)
-        self.sock.connect((self.host, self.port))
-        return
-
-    def close(self):
-        if self.sock: self.sock.close()
-        self.sock = None
-        return
-
-    def send(self, request_id, payload):
-        if not self.sock: self.connect()
-        self.sock.sendall(payload)
-        return
-
-    def _read_bytes(self, size_b):
-        resp = ''
-        while size_b:
-            try:
-                data = self.sock.recv(size_b)
-            except socket.error as exc:
-                logger.warning('unable to receive data from kafka: %s', exc)
-            size_b -= len(data)
-            resp += data
-        return resp
-
-
-    def recv(self, request_id):
-        if not self.sock: self.connect()
-        # read header
-#         resp = self.sock.recv(4, socket.MSG_WAITALL)
-        resp = self._read_bytes(4)
-        (size,) = struct.unpack('>i', resp)
-        # read the rest of the message
-#         resp = self.sock.recv(size, socket.MSG_WAITALL)
-        resp = self._read_bytes(size)
-        data = str(resp)
-        return data
+ID_GEN = itertools.count()
 
 
 class KafkaClient(object):
-
-    ID_GEN = itertools.count()
 
     def __init__(self, brokers):
 
@@ -93,7 +22,7 @@ class KafkaClient(object):
         self.conns = []
         for broker in brokers.split(","):
             host, port = broker.split(":")
-            self.conns.append(KafkaConnection(host, port))
+            self.conns.append(kafka.connection.KafkaConnection(host, port))
 
         self.brokers = {}            # broker_id -> BrokerMetadata
         self.topics_to_brokers = {}  # topic_id -> broker_id
@@ -122,45 +51,56 @@ class KafkaClient(object):
                 response = conn.recv(request_id)
                 return response
 
-            except Exception as exc:
-                logger.error("conn: %s, broker: %s, %s", conn, broker, exc, exc_info=True)
+            except IOError as exc:
+                logger.warning("conn: %s, broker: %s, %s", conn, broker, exc, exc_info=False)
+                if exc.errno == 32:
+                    conn.connect() # this will raise #61 if the broker went away
                 continue
 
-        raise Exception("no responses from brokers")
+        raise kafka.protocol.BrokerResponseError("no responses from broker: %s" % (broker, ))
 
 
     def get_metadata(self):
 
-        self.brokers = {}            # broker_id -> BrokerMetadata
-        self.topics_to_brokers = {}  # topic_id -> broker_id
-        self.topic_partitions = {}   # topic_id -> [0, 1, 2, ...]
+        self.brokers.clear() # as opposed to self.brokers = {} this will keep the same dict instance
+        self.topics_to_brokers.clear()
+        self.topic_partitions.clear()
 
-        request_id = KafkaClient.ID_GEN.next()
-        request = kafka.protocol.encode_metadata_request(self.client_id, request_id, topics=None)
-#         logger.debug(base64.b64encode(request))
-        response = self.send_request(request_id, request)
-#         logger.debug(base64.b64encode(response))
-        self.brokers, topics = kafka.protocol.decode_metadata_response(response)
-        for topic, partitions in topics.items():
-            if not partitions: continue
-            self.topic_partitions[topic] = []
-            for partition, meta in partitions.items():
-                topic_part = kafka.protocol.TopicAndPartition(topic, partition)
-                self.topics_to_brokers[topic_part] = self.brokers[meta.leader]
-                self.topic_partitions[topic].append(partition)
+        try:
+            request_id = kafka.client.ID_GEN.next()
+            request = kafka.protocol.encode_metadata_request(self.client_id, request_id, topics=None)
+#             logger.debug(base64.b64encode(request)) # get the wire dump
+            response = self.send_request(request_id, request)
+#             logger.debug(base64.b64encode(response)) # get the wire dump
+
+            self.brokers, topics = kafka.protocol.decode_metadata_response(response)
+            for topic, partitions in topics.items():
+                if not partitions: continue
+                self.topic_partitions[topic] = []
+                for partition, meta in partitions.items():
+                    topic_part = kafka.protocol.TopicAndPartition(topic, partition)
+                    self.topics_to_brokers[topic_part] = self.brokers[meta.leader] if meta.leader != -1 else None
+                    self.topic_partitions[topic].append(partition)
+
+        except kafka.protocol.BrokerResponseError as exc:
+            logger.debug("%r in get_metadata()", exc)
 
         return
 
 
     def fetch(self, topic, partition, offset):
 
-        request_id = KafkaClient.ID_GEN.next()
+        if not self.brokers:
+            self.get_metadata()
+
+        request_id = kafka.client.ID_GEN.next()
         request = kafka.protocol.FetchRequest(topic, partition, offset, FETCH_BUFFER_SIZE_BYTES)
         encoded = kafka.protocol.encode_fetch_request(self.client_id, request_id, request)
-#         logger.debug(base64.b64encode(encoded))
+#         logger.debug(base64.b64encode(encoded)) # get the wire dump
         leader = self.topics_to_brokers[kafka.protocol.TopicAndPartition(topic, partition)]
+#         logger.info((leader, self.topics_to_brokers))
         response = self.send_request(request_id, encoded, broker=leader)
-#         logger.debug(base64.b64encode(response))
+#         logger.debug(base64.b64encode(response)) # get the wire dump
 
         messages = []
         for r in kafka.protocol.decode_fetch_response(response):
