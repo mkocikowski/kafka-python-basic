@@ -1,3 +1,5 @@
+This is prototype work. Don't expect much. 
+
 Purpose
 -------
 Provide simple, single-threaded consumer and producer, compatible with
@@ -42,3 +44,10 @@ Producer REST
 -------------
 
     TODO
+
+Credit
+------
+Based on [kafka-python](https://github.com/mumrah/kafka-python). The
+only file largely unmodified is 'protocol.py', which has its own
+license and copyright attribution. Thank you!
+
