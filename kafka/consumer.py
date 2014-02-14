@@ -20,9 +20,9 @@ OFFSETS_FILE_PATH = "~/.kafka-consumer.offsets"
 
 class KafkaConsumer(object):
 
-    def __init__(self, client, group, topic, failfast=False):
+    def __init__(self, hosts, group, topic, failfast=False):
         self.failfast = failfast
-        self.client = client
+        self.client = kafka.client.KafkaClient(hosts)
         self.group = group
         self.topic = topic
         self.offsets = {}
@@ -34,6 +34,7 @@ class KafkaConsumer(object):
     
     
     def __exit__(self, exctype, value, tb): 
+        self.client.close()
         self.save_offsets()
         
 
@@ -176,9 +177,7 @@ def main():
     args = args_parser().parse_args()
     kafka.log.set_up_logging(level=logging.ERROR-(args.verbose*10))
 
-    client = kafka.client.KafkaClient(args.hosts)
-
-    with KafkaConsumer(client, args.group, args.topic, failfast=args.failfast) as consumer:
+    with KafkaConsumer(args.hosts, args.group, args.topic, failfast=args.failfast) as consumer:
     
         while True:
             messages = consumer.fetch()

@@ -6,8 +6,8 @@ Provide simple, single-threaded consumer and producer, compatible with
 Kafka 0.8. These are to be used either as stand alone programs, or as
 libraries. The producer will also expose a REST interface. 
 
-Installation - client only
---------------------------
+Installation
+------------
 
     # if you want the client only, no VM with zookeeper/kafka
     pip install -U https://github.com/mkocikowski/kafka-python-basic/archive/master.zip

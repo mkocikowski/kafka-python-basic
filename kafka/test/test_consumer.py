@@ -12,18 +12,18 @@ import kafka.consumer
 
 class ConsumerTest(unittest.TestCase):
 
-    def setUp(self):
-        self.client = kafka.client.KafkaClient("192.168.44.11:9093,192.168.44.11:9094")
+#     def setUp(self):
+#         self.client = kafka.client.KafkaClient("192.168.44.11:9093,192.168.44.11:9094")
 
-    def tearDown(self):
-        self.client.close()
+#     def tearDown(self):
+#         self.client.close()
 
     def test_init(self):
-        consumer = kafka.consumer.KafkaConsumer(self.client, None, 'unittest01')
+        consumer = kafka.consumer.KafkaConsumer("192.168.44.11:9093,192.168.44.11:9094", None, 'unittest01')
 
 
     def test_fetch(self):
-        consumer = kafka.consumer.KafkaConsumer(self.client, None, 'unittest01')
+        consumer = kafka.consumer.KafkaConsumer("192.168.44.11:9093,192.168.44.11:9094", None, 'unittest01')
         messages = consumer.fetch()
         self.assertTrue("foo" in messages)
         self.assertTrue("bar" in messages)
