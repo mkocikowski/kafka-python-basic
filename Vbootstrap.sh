@@ -27,6 +27,9 @@ sudo pkill -SIGHUP supervisord$
 sleep 5
 
 # create the base topics
-/home/vagrant/kafka_2.8.0-0.8.0/bin/kafka-create-topic.sh --zookeeper 192.168.44.11:2181 --partition 4 --replica 2  --topic untittest01
+/home/vagrant/kafka_2.8.0-0.8.0/bin/kafka-create-topic.sh --zookeeper 192.168.44.11:2181 --partition 4 --replica 2  --topic unittest01
 /home/vagrant/kafka_2.8.0-0.8.0/bin/kafka-create-topic.sh --zookeeper 192.168.44.11:2181 --partition 4 --replica 2  --topic topic01
 
+# pre-populate with some data
+echo "foo" | /home/vagrant/kafka_2.8.0-0.8.0/bin/kafka-console-producer.sh --broker-list 192.168.44.11:9093,192.168.44.11:9094 --topic unittest01 --sync
+echo "bar" | /home/vagrant/kafka_2.8.0-0.8.0/bin/kafka-console-producer.sh --broker-list 192.168.44.11:9093,192.168.44.11:9094 --topic unittest01 --sync

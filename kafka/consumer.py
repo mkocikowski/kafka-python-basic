@@ -55,6 +55,12 @@ class KafkaConsumer(object):
         return
 
 
+    def rollback(self):
+
+        self.offsets_pending = {}
+        return
+
+
     def fetch(self):
 
         if not self.offsets:
