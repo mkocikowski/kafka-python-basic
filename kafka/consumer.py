@@ -1,6 +1,8 @@
 import logging
 import time
 import argparse
+import os.path
+import json
 
 import kafka.log
 import kafka.client
@@ -9,6 +11,8 @@ import kafka.protocol
 
 logger = logging.getLogger(__name__)
 
+
+OFFSETS_FILE_PATH = "~/.kafka-consumer.offsets"
 
 class KafkaConsumer(object):
 
@@ -21,6 +25,14 @@ class KafkaConsumer(object):
         self.offsets_pending = {}
 
 
+    def __enter__(self):
+        return self
+    
+    
+    def __exit__(self, exctype, value, tb): 
+        self.save_offsets()
+        
+
     def init_offsets(self):
 
         if not self.client.topic_partitions:
@@ -28,7 +40,7 @@ class KafkaConsumer(object):
 
         try:
             self.offsets = {p: 0 for p in self.client.topic_partitions[self.topic]}
-#             logger.debug(self.offsets)
+            logger.debug(self.offsets)
 
         except KeyError:
             raise kafka.protocol.UnknownTopicError(self.topic)
@@ -37,12 +49,55 @@ class KafkaConsumer(object):
 
 
     def load_offsets(self):
-        pass
 
+        if not self.group:
+            return
+
+        try: 
+            path = os.path.expanduser(OFFSETS_FILE_PATH)
+            with open(path, "rU") as f:
+                offsets = f.read()
+            offsets = json.loads(offsets)
+            # json doesn't allow integer keys, all keys are strings,
+            # so here the partition keys need to be coneverted back to ints
+            self.offsets = {int(k): v for k, v in offsets[self.topic].items()}
+            logger.debug("loaded offsets from file: %s, %s", path, self.offsets)
+
+        except IOError as exc: 
+            logger.warning("can't open offsets file: %s", exc)
+        
+        except ValueError as exc: 
+            logger.warning("can't parse offsets file: %s", exc)
+        
+        return
+        
 
     def save_offsets(self):
-        pass
+    
+        if not self.group:
+            return
+        
+        path = os.path.expanduser(OFFSETS_FILE_PATH)
+        try: 
+            with open(path, "rU") as f:
+                offsets = f.read()
+                offsets = json.loads(offsets)
+        except IOError, ValueError:
+            offsets = {}
 
+        try: 
+            offsets[self.topic] = self.offsets
+            logger.debug(offsets)
+            logger.debug(json.dumps(offsets))
+            with open(path, "w") as f:
+                f.write(json.dumps(offsets))
+            logger.debug("saved offsets to file: %s", path)
+
+        except IOError as exc: 
+            logger.warning("can't open offsets file: %s", exc)
+        
+        return
+        
 
     def commit(self):
 
@@ -105,6 +160,7 @@ that.
     parser = argparse.ArgumentParser(description="Kafka consumer cli (%s)" % (kafka.__version__, ), epilog=epilog)
     parser.add_argument('--hosts', type=str, action='store', default='localhost:9092', help="broker1:port1,broker2:port2; (%(default)s)")
     parser.add_argument('--topic', type=str, action='store', default=None, help="topic name; (%(default)s)")
+    parser.add_argument('--group', type=str, action='store', default=None, help="if set, use this group id; (%(default)s)")
     parser.add_argument('--failfast', action='store_true', help="if set, exit on any error")
     parser.add_argument('--verbose', '-v', action='count', default=0, help="try -v, -vv, -vvv")
 
@@ -117,12 +173,13 @@ def main():
     kafka.log.set_up_logging(level=logging.ERROR-(args.verbose*10))
 
     client = kafka.client.KafkaClient(args.hosts)
-    consumer = KafkaConsumer(client, 'g1', args.topic, failfast=args.failfast)
 
-    while True:
-        messages = consumer.fetch()
-        print(messages)
-        time.sleep(1)
+    with KafkaConsumer(client, args.group, args.topic, failfast=args.failfast) as consumer:
+    
+        while True:
+            messages = consumer.fetch()
+            print(messages)
+            time.sleep(1)
 
 
 if __name__ == "__main__":

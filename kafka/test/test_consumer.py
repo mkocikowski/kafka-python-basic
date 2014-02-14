@@ -19,11 +19,11 @@ class ConsumerTest(unittest.TestCase):
         self.client.close()
 
     def test_init(self):
-        consumer = kafka.consumer.KafkaConsumer(self.client, 'g1', 'unittest01')
+        consumer = kafka.consumer.KafkaConsumer(self.client, None, 'unittest01')
 
 
     def test_fetch(self):
-        consumer = kafka.consumer.KafkaConsumer(self.client, 'g1', 'unittest01')
+        consumer = kafka.consumer.KafkaConsumer(self.client, None, 'unittest01')
         messages = consumer.fetch()
         self.assertTrue("foo" in messages)
         self.assertTrue("bar" in messages)
