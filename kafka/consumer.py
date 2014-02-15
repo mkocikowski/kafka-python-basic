@@ -22,11 +22,13 @@ class KafkaConsumer(object):
 
     def __init__(self, hosts, group, topic, failfast=False):
         self.failfast = failfast
+        self.hosts = hosts
         self.client = kafka.client.KafkaClient(hosts)
         self.group = group
         self.topic = topic
         self.offsets = {}
         self.offsets_pending = {}
+        logger.debug("created consumer: %r", self)
 
 
     def __enter__(self):
@@ -36,6 +38,10 @@ class KafkaConsumer(object):
     def __exit__(self, exctype, value, tb): 
         self.client.close()
         self.save_offsets()
+        
+    
+    def __repr__(self):
+        return "KafkaConsumer('%s', '%s', '%s')" % (self.hosts, self.group, self.topic)
         
 
     def init_offsets(self):
@@ -146,6 +152,7 @@ class KafkaConsumer(object):
                 if self.failfast:
                     raise
 
+#         logger.debug(values)
         return values
 
 

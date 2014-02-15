@@ -103,7 +103,7 @@ class KafkaClient(object):
         encoded = kafka.protocol.encode_fetch_request(self.client_id, request_id, request)
 #         logger.debug(base64.b64encode(encoded)) # get the wire dump
         leader = self.topics_to_brokers[kafka.protocol.TopicAndPartition(topic, partition)]
-#         logger.info((leader, self.topics_to_brokers))
+#         logger.info((leader, topic, partition))
         response = self.send_request(request_id, encoded, broker=leader)
 #         logger.debug(base64.b64encode(response)) # get the wire dump
 

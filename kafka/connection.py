@@ -71,7 +71,8 @@ class KafkaConnection(object):
             try:
                 data = self.sock.recv(size_b)
             except socket.error as exc:
-                logger.warning('%r (%i)', exc, exc.errno)
+#                 logger.warning('%r (%i)', exc, exc.errno)
+                logger.warning(exc)
                 raise
             size_b -= len(data)
             resp += data
