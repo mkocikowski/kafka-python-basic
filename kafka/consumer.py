@@ -134,15 +134,16 @@ class KafkaConsumer(object):
                 offsets = f.read()
                 offsets = json.loads(offsets)
         except IOError, ValueError:
+            logger.warning("can't open offsets file (for update before saving): %s", exc)
             offsets = {}
         except Exception as exc:
-            logger.debug(exc, exc_info=True)
+            logger.warning(exc, exc_info=True)
             offsets = {}
 
         try: 
             group_offsets = offsets.setdefault(self.group, {})
             group_offsets[self.topic] = self.offsets
-            logger.debug(offsets)
+#             logger.debug(offsets)
 #             logger.debug(json.dumps(offsets))
             with open(self.offsets_file_path, "w") as f:
                 f.write(json.dumps(offsets))
@@ -200,29 +201,20 @@ class KafkaConsumer(object):
 
         return values
 
-        
-
 
 
 def args_parser():
 
     epilog = """
-There is little automagic here. You need to specify all your brokers
-in the hosts parameter (there is no magic boostraping of the config).
-If you set the 'failfast' flag, then the program will exit on first
-connection failure. Otherwise, when there is a problem with connection
-to individual broker, the connection will be retried. The basic idea
-is to run this in failfast mode under supervisord or something like
-that.
+You need to specify all your brokers in the hosts parameter (there is
+no magic boostraping of the config). If you set the 'failfast' flag,
+then the program will exit on first connection failure. Otherwise,
+when there is a problem with connection to individual broker, the
+connection will be retried.
 
-The '--start-reading-from' argument controls the initial offset in the
-topic. 'saved' will use offsets in the file specified with
-'--offsets-path'; if there is an error, if will exit if in failfast
-mode, otherwise it will read from the start of the topic. Note that
-saved offsets work only for named groups - if you are not using a
-group name, 'saved' is synonymous with 'head'. 'head' starts reading
-from the start of the topic, 'tail' reads only messages sent after the
-client was started. 
+If you set the 'group' argument, then offsets will be read from the
+file specified with the 'offsets' argument. Setting 'head' or 'tail'
+will override that. 
  
 """
 
@@ -232,8 +224,12 @@ client was started.
     parser.add_argument('--verbose', '-v', action='count', default=0, help="try -v, -vv, -vvv")
     parser.add_argument('--failfast', action='store_true', help="if set, exit on any error")
     parser.add_argument('--group', type=str, action='store', default=None, help="if set, use this group id; (%(default)s)")
-    parser.add_argument('--start-reading-from', type=str, action='store', choices=['saved', 'head', 'tail'], default='saved', help="(%(default)s)")
-    parser.add_argument('--offsets-path', metavar='PATH', type=str, action='store', default=OFFSETS_FILE_PATH, help="(%(default)s)")
+    whence = parser.add_mutually_exclusive_group()
+    whence.add_argument('--head', action='store_true', help='read from the beginning')
+    whence.add_argument('--tail', action='store_true', help="read only 'new' messages")
+    parser.add_argument('--offsets', metavar='PATH', type=str, action='store', default=OFFSETS_FILE_PATH, help="'%(default)s'")
+    parser.add_argument('--output', metavar='PATH', type=str, action='store', default='/dev/stdout', help="output in 'append' mode; ('%(default)s')")
+    
 
     return parser
 
@@ -243,14 +239,22 @@ def main():
     args = args_parser().parse_args()
     kafka.log.set_up_logging(level=logging.ERROR-(args.verbose*10))
 
+    output_fh = None
+    
     try: 
 
-        if args.start_reading_from == 'saved': whence = WHENCE_SAVED
-        elif args.start_reading_from == 'head': whence = WHENCE_HEAD
-        elif args.start_reading_from == 'tail': whence = WHENCE_TAIL
+        if args.head: whence = WHENCE_HEAD
+        elif args.tail: whence = WHENCE_TAIL
+        else: whence = WHENCE_SAVED
 
-        with KafkaConsumer(hosts=args.hosts, group=args.group, topic=args.topic, failfast=args.failfast, whence=whence, offsets_file_path=args.offsets_path) as consumer:
-    
+        if args.output == '/dev/stdout': 
+            output_fh = sys.stdout
+        else:
+            output_fh = open(os.path.abspath(args.output), 'a', buffering=1)
+        logger.debug("opened %r (%s) for output", output_fh, args.output)
+        
+        with KafkaConsumer(hosts=args.hosts, group=args.group, topic=args.topic, failfast=args.failfast, whence=whence, offsets_file_path=args.offsets) as consumer:
+
             while True:
 
                 t1 = time.time()
@@ -261,7 +265,8 @@ def main():
 
                 t1 = time.time()
                 for message in messages:
-                    print(message)
+                    output_fh.write("%s\n" % message)
+#                     output_fh.flush()
                 if messages:
                     logger.debug("took %.2fs to output %i messages, bytesize: %i", time.time()-t1, len(messages), bytesize)
 
@@ -269,10 +274,16 @@ def main():
                 if not messages: 
                     time.sleep(1)
 
+
     except KeyboardInterrupt:
-        
         logger.info("keyboard interrupt")
         
+    finally:
+        if output_fh:
+            output_fh.flush()
+            output_fh.close()
+            logger.debug("flushed and closed output file: %r (%s)", output_fh, args.output)
+
 
 if __name__ == "__main__":
     main()

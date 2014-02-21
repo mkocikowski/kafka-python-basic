@@ -10,7 +10,7 @@ ld = """Kafka client, basic.
 
 setup(
     name = 'kafka',
-    version = '0.0.2',
+    version = '0.0.3',
     author = 'Mik Kocikowski',
     author_email = 'mkocikowski@gmail.com',
     url = 'https://github.com/mkocikowski/kafka-python-basic',
