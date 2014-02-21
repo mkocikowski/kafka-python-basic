@@ -43,6 +43,12 @@ class KafkaClient(object):
             conn.close()
 
 
+    def get_topic_leader(self, topic, partition):   
+        leader = self.topics_to_brokers[kafka.protocol.TopicAndPartition(topic, partition)]
+#         logger.debug("leader: %r for topic: %s for partition: %i", leader, topic, partition)
+        return leader
+
+
     def send_request(self, request_id, request, broker=None):
 
         for conn in self.conns:
@@ -77,7 +83,6 @@ class KafkaClient(object):
 #             logger.debug(base64.b64encode(request)) # get the wire dump
             response = self.send_request(request_id, request)
 #             logger.debug(base64.b64encode(response)) # get the wire dump
-
             self.brokers, topics = kafka.protocol.decode_metadata_response(response)
             for topic, partitions in topics.items():
                 if not partitions: continue
@@ -93,6 +98,21 @@ class KafkaClient(object):
         return
 
 
+    def get_offset(self, topic, partition): 
+    
+        request_id = kafka.client.ID_GEN.next()
+        request = kafka.protocol.OffsetRequest(topic, partition, -1, 1)
+        encoded = kafka.protocol.encode_offset_request(self.client_id, request_id, request)
+#         logger.debug(base64.b64encode(encoded))
+#         leader = self.topics_to_brokers[kafka.protocol.TopicAndPartition(topic, partition)]
+        leader = self.get_topic_leader(topic, partition)
+        response = self.send_request(request_id, encoded, broker=leader)
+#         logger.debug(base64.b64encode(response)) # get the wire dump
+        offsets = list(kafka.protocol.decode_offset_response(response))
+        logger.debug(offsets)        
+        return offsets[0]
+
+
     def fetch(self, topic, partition, offset):
 
         if not self.brokers:
@@ -102,8 +122,8 @@ class KafkaClient(object):
         request = kafka.protocol.FetchRequest(topic, partition, offset, FETCH_BUFFER_SIZE_BYTES)
         encoded = kafka.protocol.encode_fetch_request(self.client_id, request_id, request)
 #         logger.debug(base64.b64encode(encoded)) # get the wire dump
-        leader = self.topics_to_brokers[kafka.protocol.TopicAndPartition(topic, partition)]
-#         logger.info((leader, topic, partition))
+#         leader = self.topics_to_brokers[kafka.protocol.TopicAndPartition(topic, partition)]
+        leader = self.get_topic_leader(topic, partition)
         response = self.send_request(request_id, encoded, broker=leader)
 #         logger.debug(base64.b64encode(response)) # get the wire dump
 

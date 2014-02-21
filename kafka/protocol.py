@@ -18,7 +18,9 @@ import logging
 import base64
 import zlib
 
+
 logger = logging.getLogger(__name__)
+
 
 PRODUCE_KEY = 0
 FETCH_KEY = 1
@@ -31,6 +33,7 @@ ATTRIBUTE_CODEC_MASK = 0x03
 CODEC_NONE = 0x00
 CODEC_GZIP = 0x01
 CODEC_SNAPPY = 0x02
+
 
 ProduceRequest = collections.namedtuple("ProduceRequest", ["topic", "partition", "messages"])
 FetchRequest = collections.namedtuple("FetchRequest", ["topic", "partition", "offset", "max_bytes"])
@@ -50,6 +53,7 @@ OffsetAndMessage = collections.namedtuple("OffsetAndMessage", ["offset", "messag
 Message = collections.namedtuple("Message", ["magic", "attributes", "key", "value"])
 TopicAndPartition = collections.namedtuple("TopicAndPartition", ["topic", "partition"])
 
+
 class KafkaError(RuntimeError): pass
 class KafkaRequestError(KafkaError): pass
 class KafkaUnavailableError(KafkaError): pass
@@ -64,6 +68,7 @@ class ConsumerNoMoreData(KafkaError): pass
 
 class UnknownTopicError(KafkaError): pass
 class CompressionNotSupportedError(KafkaError): pass
+
 
 def write_int_string(s):
     if s is None:
@@ -128,7 +133,8 @@ def group_by_topic_and_partition(tuples):
         out[t.topic][t.partition] = t
     return out
 
-# ----------------------------------------------------------------------------
+
+
 
 def encode_message_header(client_id, correlation_id, request_key):
 
@@ -186,6 +192,38 @@ def decode_metadata_response(data):
     return brokers, topic_metadata
 
 
+def encode_offset_request(client_id, correlation_id, request):
+
+    message = encode_message_header(client_id, correlation_id, OFFSET_KEY)
+    message += struct.pack('>ii', -1, 1)
+    message += write_short_string(request.topic)
+    message += struct.pack('>i', 1)
+    message += struct.pack('>iqi', request.partition, request.time, request.max_offsets)
+
+#     return struct.pack('>i%ds' % len(message), len(message), message)
+    data = write_int_string(message)
+    return data
+
+
+def decode_offset_response(data):
+
+    ((correlation_id, num_topics), cur) = relative_unpack('>ii', data, 0)
+
+    for i in range(num_topics):
+        (topic, cur) = read_short_string(data, cur)
+        ((num_partitions,), cur) = relative_unpack('>i', data, cur)
+
+        for i in range(num_partitions):
+            ((partition, error, num_offsets,), cur) = relative_unpack('>ihi', data, cur)
+
+            offsets = []
+            for j in range(num_offsets):
+                ((offset,), cur) = relative_unpack('>q', data, cur)
+                offsets.append(offset)
+
+            yield OffsetResponse(topic, partition, error, tuple(offsets))
+
+
 def encode_fetch_request(client_id, correlation_id, request, max_wait_time=100, min_bytes=4096):
 
     message = encode_message_header(client_id, correlation_id, FETCH_KEY)
@@ -196,7 +234,6 @@ def encode_fetch_request(client_id, correlation_id, request, max_wait_time=100, 
 
     data = write_int_string(message)
     return(data)
-
 
 
 def decode_fetch_response(data):

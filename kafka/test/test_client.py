@@ -33,6 +33,13 @@ class ClientTest(unittest.TestCase):
         self.assertTrue('bar' in data)
 
 
+    def test_get_offsets(self):
+        client = kafka.client.KafkaClient("192.168.44.11:9093,192.168.44.11:9094")
+        client.get_offset(topic='unittest01', partition=0)
+        client.get_offset(topic='unittest01', partition=1)
+        client.get_offset(topic='unittest01', partition=2)
+        client.get_offset(topic='unittest01', partition=3)
+
 #
 #     def test_get_metadata(self):
 #         client = kafka.client.KafkaClient("192.168.44.11:9093,192.168.44.11:9094")
