@@ -219,6 +219,13 @@ connection will be retried.
 If you set the 'group' argument, then offsets will be read from the
 file specified with the 'offsets' argument. Setting 'head' or 'tail'
 will override that. 
+
+Output 'plays nice' with pipes and named pipes. Specifically, if you are
+outputting to a named pipe (with the 'output' argument), the consumer
+will recover gracefully from SIGPIPE / EPIPE (which happen when whatever
+process is reading from the pipe closes and disconnects). When a new
+process connects to the pipe, things will pick up from where the
+previous process left off. 
  
 """
 
