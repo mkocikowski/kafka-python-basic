@@ -192,6 +192,40 @@ def decode_metadata_response(data):
     return brokers, topic_metadata
 
 
+
+
+def encode_produce_request(client_id, correlation_id, request, acks=1, timeout=1000):
+
+    message = encode_message_header(client_id, correlation_id, PRODUCE_KEY)
+    message += struct.pack('>hii', acks, timeout, 1)
+    message += struct.pack('>h%dsi' % len(request.topic), len(request.topic), request.topic, 1)
+    message_set = encode_message_set(request.messages)
+    message += struct.pack('>ii%ds' % len(message_set), request.partition, len(message_set), message_set)
+
+#     return struct.pack('>i%ds' % len(message), len(message), message)
+    data = write_int_string(message)
+    return data
+    
+
+def decode_produce_response(data):
+
+    ((correlation_id, num_topics), cur) = relative_unpack('>ii', data, 0)
+
+    for i in range(num_topics):
+        ((strlen,), cur) = relative_unpack('>h', data, cur)
+        topic = data[cur:cur + strlen]
+        cur += strlen
+        ((num_partitions,), cur) = relative_unpack('>i', data, cur)
+
+        for i in range(num_partitions):
+            ((partition, error, offset), cur) = relative_unpack('>ihq', data, cur)
+
+            yield ProduceResponse(topic, partition, error, offset)
+
+
+
+
+
 def encode_offset_request(client_id, correlation_id, request):
 
     message = encode_message_header(client_id, correlation_id, OFFSET_KEY)
@@ -248,6 +282,30 @@ def decode_fetch_response(data):
             ((partition, error, highwater_mark_offset), cur) = relative_unpack('>ihq', data, cur)
             (message_set, cur) = read_int_string(data, cur)
             yield FetchResponse(topic, partition, error, highwater_mark_offset, decode_message_set_iter(message_set))
+
+
+def encode_message_set(messages):
+
+    message_set = ""
+    for message in messages:
+        encoded_message = encode_message(message)
+        message_set += struct.pack('>qi%ds' % len(encoded_message), 0, len(encoded_message), encoded_message)
+
+    return message_set
+
+
+def encode_message(message):
+
+    if message.magic == 0:
+        msg = struct.pack('>BB', message.magic, message.attributes)
+        msg += write_int_string(message.key)
+        msg += write_int_string(message.value)
+        crc = zlib.crc32(msg)
+        msg = struct.pack('>i%ds' % len(msg), crc, msg)
+    else:
+        raise Exception("Unexpected magic number: %d" % message.magic)
+
+    return msg
 
 
 def decode_message_set_iter(data):

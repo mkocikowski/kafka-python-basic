@@ -134,3 +134,17 @@ class KafkaClient(object):
 
         return messages
 
+
+    def send(self, topic, partition, messages): 
+
+        request_id = kafka.client.ID_GEN.next()
+        request = kafka.protocol.ProduceRequest(topic, partition, messages)
+#         logger.debug(request)
+        encoded = kafka.protocol.encode_produce_request(self.client_id, request_id, request)
+#         logger.debug(base64.b64encode(encoded)) # get the wire dump 
+        leader = self.get_topic_leader(topic, partition)
+        response = self.send_request(request_id, encoded, broker=leader)
+#         logger.debug(base64.b64encode(response)) # get the wire dump
+        responses = list(kafka.protocol.decode_produce_response(response))
+#         logger.debug(responses)
+        return responses[0]

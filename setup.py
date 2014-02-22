@@ -10,7 +10,7 @@ ld = """Kafka client, basic.
 
 setup(
     name = 'kafka',
-    version = '0.0.4',
+    version = '0.0.5',
     author = 'Mik Kocikowski',
     author_email = 'mkocikowski@gmail.com',
     url = 'https://github.com/mkocikowski/kafka-python-basic',
@@ -33,7 +33,7 @@ setup(
     entry_points = {
         'console_scripts': [
             'kafka-consumer = kafka.consumer:main',
-#             'esdump = estools.dump.client:main',
+            'kafka-producer = kafka.producer:main',
         ]
     },
     classifiers = [

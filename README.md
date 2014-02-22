@@ -23,13 +23,14 @@ Consumer CLI
 ------------
 
 	kafka-consumer --help 
-    kafka-consumer --hosts 192.168.44.11:9093,192.168.44.11:9094 --topic topic01
+    kafka-consumer 192.168.44.11:9093,192.168.44.11:9094 topic01 --tail
 
 
 Producer CLI
 ------------
     
-    TODO
+    kafka-producer --help
+    echo "foo" | kafka-producer 192.168.44.11:9093,192.168.44.11:9094 topic01
 
 Producer REST
 -------------
