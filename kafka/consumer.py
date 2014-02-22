@@ -45,8 +45,12 @@ class KafkaConsumer(object):
     
     
     def __exit__(self, exctype, value, tb): 
+    	if exctype:
+    		logger.error("exiting with error: %s, %s", exctype, tb)
         self.client.close()
         self.save_offsets()
+        return False # http://docs.python.org/2/reference/datamodel.html#object.__exit__
+        
         
     
     def __repr__(self):
@@ -246,12 +250,6 @@ def main():
         if args.head: whence = WHENCE_HEAD
         elif args.tail: whence = WHENCE_TAIL
         else: whence = WHENCE_SAVED
-
-        if args.output == '/dev/stdout': 
-            output_fh = sys.stdout
-        else:
-            output_fh = open(os.path.abspath(args.output), 'a', buffering=1)
-        logger.debug("opened %r (%s) for output", output_fh, args.output)
         
         with KafkaConsumer(hosts=args.hosts, group=args.group, topic=args.topic, failfast=args.failfast, whence=whence, offsets_file_path=args.offsets) as consumer:
 
@@ -265,7 +263,19 @@ def main():
 
                 t1 = time.time()
                 for message in messages:
-                    output_fh.write("%s\n" % message)
+                    for retry in range(3): 
+                        try: 
+                            output_fh.write("%s\n" % message)
+                            break
+                        except (IOError, AttributeError) as exc: 
+                            logger.debug(exc)
+                            if args.output == '/dev/stdout': 
+                                output_fh = sys.stdout
+                            else:
+                                output_fh = open(os.path.abspath(args.output), 'a', buffering=1)
+                            logger.debug("opened %r (%s) for output", output_fh, args.output)
+
+
 #                     output_fh.flush()
                 if messages:
                     logger.debug("took %.2fs to output %i messages, bytesize: %i", time.time()-t1, len(messages), bytesize)
