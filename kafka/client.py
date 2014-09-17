@@ -63,12 +63,20 @@ class KafkaClient(object):
                 return response
 
             except IOError as exc:
-                logger.warning("conn: %s, broker: %s, %s", conn, broker, exc, exc_info=False)
+                logger.warning(
+                    "conn: %s, broker: %s, %s (errno: %i)", 
+                    conn, 
+                    broker, 
+                    exc.__class__, 
+                    (-1 if not exc.errno else exc.errno), 
+                    exc_info=False
+                )
                 if exc.errno == 32:
                     conn.connect() # this will raise #61 if the broker went away
                 continue
 
-        raise kafka.protocol.BrokerResponseError("no responses from broker: %s" % (broker, ))
+        raise kafka.protocol.BrokerResponseError("no responses from brokers")
+
 
 
     def get_metadata(self):
@@ -92,8 +100,11 @@ class KafkaClient(object):
                     self.topics_to_brokers[topic_part] = self.brokers[meta.leader] if meta.leader != -1 else None
                     self.topic_partitions[topic].append(partition)
 
+            logger.debug(self.topics_to_brokers)
+
         except kafka.protocol.BrokerResponseError as exc:
             logger.debug("%r in get_metadata()", exc)
+            raise
 
         return
 

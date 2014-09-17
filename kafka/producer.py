@@ -42,8 +42,8 @@ class KafkaProducer(object):
     
     
     def __exit__(self, exctype, value, tb): 
-    	if exctype:
-    		logger.error("exiting with error: %s, %s", exctype, tb)
+        if exctype and not (exctype == KeyboardInterrupt):
+            logger.error("exiting with error: %s, %s", exctype, tb)
         self.client.close()
         return False # http://docs.python.org/2/reference/datamodel.html#object.__exit__
                 
@@ -54,7 +54,6 @@ class KafkaProducer(object):
 
     def send(self, payloads): 
         
-        messages = [kafka.protocol.Message(0, 0, None, payload) for payload in payloads]
         partitioned = [[] for i in self.client.topic_partitions[self.topic]]
         for payload in payloads:
             partitioned[self.router.next()].append(kafka.protocol.Message(0, 0, None, payload))
@@ -134,6 +133,8 @@ def main():
     except KeyboardInterrupt:
         logger.info("keyboard interrupt")
 
+    except (Exception, ) as exc:
+        logger.error(exc, exc_info=True)
     
     finally:
         if input_fh:

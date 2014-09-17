@@ -12,25 +12,28 @@ Installation
     # if you want the client only, no VM with zookeeper/kafka
     pip install -U https://github.com/mkocikowski/kafka-python-basic/archive/master.zip
 
-    # if you want the VM, zookeeper/kafka, for devs:
+Installation with Kafka broker running on Vagrant VM
+----------------------------------------------------
+
     git clone https://github.com/mkocikowski/kafka-python-basic.git
     cd kafka-python-basic
     pip install -Ue ./
-    vagrant up # make sure you have 192.168.44.11 available
+    # you will need Ansible installed
+    # make sure you have 192.168.33.10 available
+    cd vagrant; vagrant up; cd .. 
     python kafka/test/units.py 
 
 Consumer CLI
 ------------
 
 	kafka-consumer --help 
-    kafka-consumer 192.168.44.11:9093,192.168.44.11:9094 topic01 --tail
-
+    kafka-consumer 192.168.33.10:9092 topic1 --tail
 
 Producer CLI
 ------------
     
     kafka-producer --help
-    echo "foo" | kafka-producer 192.168.44.11:9093,192.168.44.11:9094 topic01
+    echo "foo" | kafka-producer 192.168.33.10:9092 topic1
 
 Producer REST
 -------------

@@ -45,7 +45,7 @@ class KafkaConsumer(object):
     
     
     def __exit__(self, exctype, value, tb): 
-    	if exctype:
+    	if exctype and not (exctype == KeyboardInterrupt):
     		logger.error("exiting with error: %s, %s", exctype, tb)
         self.client.close()
         self.save_offsets()
@@ -270,6 +270,11 @@ def main():
 
                 t1 = time.time()
                 for message in messages:
+                    # the reason why i don't just open the output file
+                    # once is that i want to reconnect gracefully if the
+                    # output file disappeared at some point while the
+                    # program is running - say if a named pipe was
+                    # deleted, but then put back in place
                     for retry in range(3): 
                         try: 
                             output_fh.write("%s\n" % message)
@@ -281,7 +286,6 @@ def main():
                             else:
                                 output_fh = open(os.path.abspath(args.output), 'a', buffering=1)
                             logger.debug("opened %r (%s) for output", output_fh, args.output)
-
 
 #                     output_fh.flush()
                 if messages:

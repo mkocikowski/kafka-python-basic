@@ -13,11 +13,10 @@ import kafka.producer
 class ProducerTest(unittest.TestCase):
 
     def test_init(self):
-        producer = kafka.producer.KafkaProducer(hosts='192.168.44.11:9093,192.168.44.11:9094', topic='unittest01')        
-
+        producer = kafka.producer.KafkaProducer(hosts='192.168.33.10:9092', topic='unittest1')
 
     def test_send(self):
-        producer = kafka.producer.KafkaProducer(hosts='192.168.44.11:9093,192.168.44.11:9094', topic='unittest01')        
+        producer = kafka.producer.KafkaProducer(hosts='192.168.33.10:9092', topic='unittest1')
         producer.send(['1', '2'])
         partitioned, response = producer.send(['3', '4', '5', '6', '7'])
         # this tests if messages are partitioned appropriately
