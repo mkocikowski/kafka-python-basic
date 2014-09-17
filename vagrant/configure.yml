@@ -94,13 +94,6 @@
   - name: wait for kafka to come up
     wait_for: port=9092
 
-  - name: create "topic1" topic
-    command: /home/kafka/current/bin/kafka-topics.sh --create --zookeeper localhost:2181 --replication-factor 1 --partitions 1 --topic topic1
-
-#  - name: create "topic2" topic
-#    command: /home/kafka/current/bin/kafka-topics.sh --create --zookeeper localhost:2181 --replication-factor 1 --partitions 4 --topic topic2
-
-#  - name: create "unittest1" topic
-#    command: /home/kafka/current/bin/kafka-topics.sh --create --zookeeper localhost:2181 --replication-factor 1 --partitions 4 --topic unittest1
-#
-#    shell: echo "foo" | /home/kafka/current/bin/kafka-console-producer.sh --broker-list 192.168.33.10:9092 --topic unittest1 --sync
+  - name: setup test topics, populate with test massages
+    script: files/setup-topics.sh
+    
